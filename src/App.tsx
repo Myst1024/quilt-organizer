@@ -140,45 +140,99 @@ function SquareCreator({ onAddSquare }: { onAddSquare: (imageData: string | null
   const [width, setWidth] = useState(12);
   const [height, setHeight] = useState(12);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isVideoReady, setIsVideoReady] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoReadyRef = useRef(false);
 
-  // Debug effect to monitor video state
+  // Ensure video srcObject is maintained across re-renders
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && stream && !videoRef.current.srcObject) {
+      console.log('Reattaching video srcObject after render');
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(console.error);
+    }
+  }, [isCameraActive, stream]);
+
+  // Ensure video is properly set up when switching back to camera view (retake)
+  useEffect(() => {
+    if (isCameraActive && !capturedImage && videoRef.current && stream) {
+      console.log('Setting up video for camera view');
+      // Reset streaming state
+      setStreaming(false);
+      // Ensure stream is attached
+      if (!videoRef.current.srcObject) {
+        videoRef.current.srcObject = stream;
+      }
+      videoRef.current.play().catch(console.error);
+    }
+  }, [isCameraActive, capturedImage, stream]);
+
+  // Set up video dimensions when the stream starts playing
   useEffect(() => {
     if (isCameraActive && videoRef.current) {
       const video = videoRef.current;
-      const logVideoState = () => {
-        console.log('Video state update:', {
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          readyState: video.readyState,
-          networkState: video.networkState,
-          isVideoReady: isVideoReady
-        });
+
+      const handleLoadedMetadata = () => {
+        console.log('Video loaded metadata, dimensions:', video.videoWidth, 'x', video.videoHeight);
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          // Set video element dimensions to match the stream for proper display
+          const maxWidth = 300;
+          const aspectRatio = video.videoHeight / video.videoWidth;
+          const width = Math.min(video.videoWidth, maxWidth);
+          const height = width * aspectRatio;
+
+          video.width = width;
+          video.height = height;
+          setStreaming(true);
+        }
       };
 
-      video.addEventListener('loadedmetadata', logVideoState);
-      video.addEventListener('loadeddata', logVideoState);
-      video.addEventListener('canplay', logVideoState);
-      video.addEventListener('play', logVideoState);
+      const handleCanPlay = () => {
+        console.log('Video canplay, dimensions:', video.videoWidth, 'x', video.videoHeight, 'readyState:', video.readyState);
+        // canplay might fire before dimensions are available, so also check here
+        if (!streaming && video.videoWidth > 0 && video.videoHeight > 0) {
+          const maxWidth = 300;
+          const aspectRatio = video.videoHeight / video.videoWidth;
+          const width = Math.min(video.videoWidth, maxWidth);
+          const height = width * aspectRatio;
+
+          video.width = width;
+          video.height = height;
+          setStreaming(true);
+        }
+      };
+
+      const handlePlaying = () => {
+        console.log('Video playing, dimensions:', video.videoWidth, 'x', video.videoHeight);
+        // When video actually starts playing, ensure streaming is set
+        if (!streaming && video.videoWidth > 0 && video.videoHeight > 0) {
+          const maxWidth = 300;
+          const aspectRatio = video.videoHeight / video.videoWidth;
+          const width = Math.min(video.videoWidth, maxWidth);
+          const height = width * aspectRatio;
+
+          video.width = width;
+          video.height = height;
+          setStreaming(true);
+        }
+      };
+
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      video.addEventListener('canplay', handleCanPlay);
+      video.addEventListener('playing', handlePlaying);
 
       return () => {
-        video.removeEventListener('loadedmetadata', logVideoState);
-        video.removeEventListener('loadeddata', logVideoState);
-        video.removeEventListener('canplay', logVideoState);
-        video.removeEventListener('play', logVideoState);
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        video.removeEventListener('canplay', handleCanPlay);
+        video.removeEventListener('playing', handlePlaying);
       };
     }
-  }, [isCameraActive, isVideoReady]);
+  }, [isCameraActive, streaming]);
 
   const startCamera = async () => {
     console.log('startCamera called');
-    console.log('navigator.mediaDevices:', navigator.mediaDevices);
-    console.log('getUserMedia available:', !!navigator.mediaDevices?.getUserMedia);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       console.error('getUserMedia not supported');
@@ -209,78 +263,25 @@ function SquareCreator({ onAddSquare }: { onAddSquare: (imageData: string | null
         });
         console.log('Front camera granted');
       }
+
       console.log('Camera access granted, stream received:', mediaStream);
       setStream(mediaStream);
       setIsCameraActive(true);
-      setIsVideoReady(false);
-      videoReadyRef.current = false;
 
       // Wait for the component to re-render with the video element
       setTimeout(() => {
         if (videoRef.current) {
-          console.log('Video element found after render, setting srcObject');
-          const video = videoRef.current;
-          video.srcObject = mediaStream;
-
-          // Wait for video to be ready - multiple event listeners for robustness
-          const checkVideoReady = () => {
-            console.log('checkVideoReady called:', {
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-              readyState: video.readyState,
-              networkState: video.networkState
-            });
-            if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
-              console.log('Video ready! Dimensions:', video.videoWidth, 'x', video.videoHeight);
-              setIsVideoReady(true);
-              videoReadyRef.current = true;
-              // Remove all event listeners
-              video.removeEventListener('loadeddata', checkVideoReady);
-              video.removeEventListener('canplay', checkVideoReady);
-              video.removeEventListener('play', checkVideoReady);
-            }
-          };
-
-          console.log('Adding event listeners');
-          video.addEventListener('loadeddata', checkVideoReady);
-          video.addEventListener('canplay', checkVideoReady);
-          video.addEventListener('play', checkVideoReady);
-
-          // Immediate check in case video is already ready
-          setTimeout(() => {
-            console.log('Immediate check - video state:', {
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-              readyState: video.readyState,
-              networkState: video.networkState
-            });
-            checkVideoReady();
-          }, 10);
-
-          // Fallback timeout - check actual video dimensions
-          setTimeout(() => {
-            console.log('Fallback check - video state:', {
-              videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight,
-              readyState: video.readyState,
-              isVideoReady: videoReadyRef.current
-            });
-            if (!videoReadyRef.current && video.videoWidth > 0 && video.videoHeight > 0) {
-              console.log('Fallback: Video ready via timeout check');
-              setIsVideoReady(true);
-              videoReadyRef.current = true;
-              video.removeEventListener('loadeddata', checkVideoReady);
-              video.removeEventListener('canplay', checkVideoReady);
-              video.removeEventListener('play', checkVideoReady);
-            } else if (!videoReadyRef.current) {
-              console.warn('Video still not ready after timeout');
-            }
-          }, 3000);
-        } else {
-          console.error('videoRef.current is still null after render delay!');
-          alert('Video element not found after render. Please refresh the page.');
+          console.log('Setting video srcObject, stream active:', mediaStream.active);
+          videoRef.current.srcObject = mediaStream;
+          console.log('Video srcObject set, calling play');
+          videoRef.current.play().then(() => {
+            console.log('Video play promise resolved');
+          }).catch(err => {
+            console.error('Error playing video:', err);
+            alert('Error starting camera: ' + err.message);
+          });
         }
-      }, 100); // Small delay to allow component re-render
+      }, 100);
     } catch (error) {
       console.error('Error accessing camera:', error);
       alert('Unable to access camera. Please check permissions.');
@@ -293,96 +294,95 @@ function SquareCreator({ onAddSquare }: { onAddSquare: (imageData: string | null
       setStream(null);
     }
     setIsCameraActive(false);
-    setIsVideoReady(false);
-    videoReadyRef.current = false;
+    setStreaming(false);
     setCapturedImage(null);
   };
 
   const takePhoto = () => {
-    if (!isVideoReady) {
-      alert('Camera is still loading. Please wait.');
+    if (!videoRef.current || !canvasRef.current) {
+      alert('Camera not available. Please try starting the camera again.');
       return;
     }
 
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
 
-      if (context && video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
-        try {
-          // Set canvas size to match video
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+    if (!context) {
+      alert('Failed to capture photo. Please try again.');
+      return;
+    }
 
-          // Draw the current video frame
-          context.drawImage(video, 0, 0);
+    // Check if video has lost its source
+    if (!video.srcObject && stream) {
+      console.log('Video lost srcObject, reattaching stream');
+      video.srcObject = stream;
+      video.play().catch(console.error);
+      alert('Camera connection lost. Please wait a moment for it to reconnect.');
+      return;
+    }
 
-          // Crop to match square dimensions aspect ratio
-          // For portrait squares (height > width), prioritize keeping full height
-          // For landscape squares (width > height), prioritize keeping full width
-          const targetAspectRatio = width / height; // width:height ratio of the square
-          const imageAspectRatio = canvas.width / canvas.height;
+    if (video.videoWidth === 0 || video.videoHeight === 0 || video.readyState < 2) {
+      console.warn('Video not ready for capture:', {
+        streaming,
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState,
+        srcObject: !!video.srcObject,
+        streamActive: video.srcObject ? (video.srcObject as MediaStream).active : false
+      });
+      alert('Camera is still loading. Please wait a moment.');
+      return;
+    }
 
-          console.log('Cropping:', {
-            squareDimensions: `${width}" × ${height}"`,
-            targetAspectRatio: targetAspectRatio.toFixed(2),
-            imageDimensions: `${canvas.width} × ${canvas.height}`,
-            imageAspectRatio: imageAspectRatio.toFixed(2)
-          });
+    try {
+      // Set canvas size to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-          let cropWidth, cropHeight, startX, startY;
+      // Draw the current video frame
+      context.drawImage(video, 0, 0);
 
-          if (height >= width) {
-            // Portrait square (5x10) - prioritize keeping full height, crop width
-            cropHeight = canvas.height;
-            cropWidth = canvas.height * targetAspectRatio;
-            startX = (canvas.width - cropWidth) / 2;
-            startY = 0;
-            console.log('Portrait square - keeping full height, cropping width:', {
-              cropWidth: cropWidth.toFixed(0),
-              cropHeight: cropHeight.toFixed(0),
-              startX: startX.toFixed(0)
-            });
-          } else {
-            // Landscape square (10x5) - prioritize keeping full width, crop height
-            cropWidth = canvas.width;
-            cropHeight = canvas.width / targetAspectRatio;
-            startX = 0;
-            startY = (canvas.height - cropHeight) / 2;
-            console.log('Landscape square - keeping full width, cropping height:', {
-              cropWidth: cropWidth.toFixed(0),
-              cropHeight: cropHeight.toFixed(0),
-              startY: startY.toFixed(0)
-            });
-          }
+      // Crop to match square dimensions aspect ratio
+      const targetAspectRatio = width / height;
+      const imageAspectRatio = canvas.width / canvas.height;
 
-          // Create cropped image data
-          const croppedCanvas = document.createElement('canvas');
-          const croppedContext = croppedCanvas.getContext('2d');
-          croppedCanvas.width = cropWidth;
-          croppedCanvas.height = cropHeight;
+      let cropWidth, cropHeight, startX, startY;
 
-          if (croppedContext) {
-            croppedContext.drawImage(
-              canvas,
-              startX, startY, cropWidth, cropHeight,
-              0, 0, cropWidth, cropHeight
-            );
-
-            const imageData = croppedCanvas.toDataURL('image/jpeg', 0.9);
-            setCapturedImage(imageData);
-          }
-        } catch (error) {
-          console.error('Error capturing photo:', error);
-          alert('Failed to capture photo. Please try again.');
-        }
+      if (height >= width) {
+        // Portrait square - prioritize keeping full height, crop width
+        cropHeight = canvas.height;
+        cropWidth = canvas.height * targetAspectRatio;
+        startX = (canvas.width - cropWidth) / 2;
+        startY = 0;
       } else {
-        console.warn('Video not ready for capture. Width:', video.videoWidth, 'Height:', video.videoHeight, 'ReadyState:', video.readyState);
-        alert('Camera not ready. Please wait a moment and try again.');
+        // Landscape square - prioritize keeping full width, crop height
+        cropWidth = canvas.width;
+        cropHeight = canvas.width / targetAspectRatio;
+        startX = 0;
+        startY = (canvas.height - cropHeight) / 2;
       }
-    } else {
-      alert('Camera not available. Please try starting the camera again.');
+
+      // Create cropped image data
+      const croppedCanvas = document.createElement('canvas');
+      const croppedContext = croppedCanvas.getContext('2d');
+      croppedCanvas.width = cropWidth;
+      croppedCanvas.height = cropHeight;
+
+      if (croppedContext) {
+        croppedContext.drawImage(
+          canvas,
+          startX, startY, cropWidth, cropHeight,
+          0, 0, cropWidth, cropHeight
+        );
+
+        const imageData = croppedCanvas.toDataURL('image/jpeg', 0.9);
+        setCapturedImage(imageData);
+        // Keep camera active - don't stop the stream
+      }
+    } catch (error) {
+      console.error('Error capturing photo:', error);
+      alert('Failed to capture photo. Please try again.');
     }
   };
 
@@ -418,31 +418,13 @@ function SquareCreator({ onAddSquare }: { onAddSquare: (imageData: string | null
               muted
               className="camera-video"
             />
-            {!isVideoReady && (
-              <div className="camera-loading">
-                <p>Setting up camera...</p>
-                <p className="camera-tip">If this takes too long, try refreshing the page</p>
-              </div>
-            )}
             <div className="camera-controls">
               <button
                 type="button"
                 onClick={takePhoto}
-                disabled={!isVideoReady}
               >
-                📷 {isVideoReady ? 'Capture' : 'Loading...'}
+                📷 Capture
               </button>
-              {!isVideoReady && (
-                <button type="button" onClick={() => {
-                  // Force ready state if video has dimensions
-                  if (videoRef.current && videoRef.current.videoWidth > 0) {
-                    setIsVideoReady(true);
-                    videoReadyRef.current = true;
-                  }
-                }}>
-                  🔄 Try Now
-                </button>
-              )}
               <button type="button" onClick={stopCamera}>❌ Cancel</button>
             </div>
           </div>
@@ -462,7 +444,11 @@ function SquareCreator({ onAddSquare }: { onAddSquare: (imageData: string | null
             />
             <div className="image-controls">
               <button type="button" onClick={addSquare}>✅ Add Square</button>
-              <button type="button" onClick={() => setCapturedImage(null)}>🔄 Retake</button>
+              <button type="button" onClick={() => {
+                console.log('Retake clicked');
+                setCapturedImage(null);
+                // Video setup will be handled by useEffect after render
+              }}>🔄 Retake</button>
             </div>
           </div>
         )}
