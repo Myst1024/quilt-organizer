@@ -543,7 +543,54 @@ function QuiltCanvas({
       setDraggedSquare(prev => prev ? { ...prev, x: clampedX, y: clampedY } : null);
     };
 
+    const handleDocumentTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canvasRef.current) return;
+
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const touch = e.touches[0];
+      if (!touch) return;
+      const x = (touch.clientX - canvasRect.left - dragOffset.x) / tileSize;
+      const y = (touch.clientY - canvasRect.top - dragOffset.y) / tileSize;
+
+      // Snap to nearest half-tile (0.5 inch grid)
+      const snappedX = Math.round(x * 2) / 2;
+      const snappedY = Math.round(y * 2) / 2;
+
+      // Clamp X position to canvas bounds, but allow Y to go below canvas for returning to available area
+      const clampedX = Math.max(0, Math.min(snappedX, totalWidth - draggedSquare.width));
+      const clampedY = snappedY; // Don't clamp Y - allow dragging below canvas
+
+      setDraggedSquare(prev => prev ? { ...prev, x: clampedX, y: clampedY } : null);
+    };
+
     const handleDocumentMouseUp = () => {
+      if (!draggedSquare) return;
+
+      const finalSquare = draggedSquare;
+
+      // Check if square is within the canvas bounds (including buffer areas)
+      // Allow placement anywhere in the canvas, but allow dragging below to return to available area
+      const isWithinCanvas = finalSquare.x >= 0 && finalSquare.x <= totalWidth - finalSquare.width &&
+                             finalSquare.y >= 0 && finalSquare.y <= totalHeight - finalSquare.height;
+
+      if (isWithinCanvas) {
+        // Find nearest available position without overlapping
+        const snappedPosition = findNearestAvailablePosition(finalSquare, quiltSquares, quilt);
+        onSquareUpdate(finalSquare.id, snappedPosition.x, snappedPosition.y, true);
+      } else {
+        // Return to extra space - square was dragged outside the canvas bounds
+        const extraSpaceX = Math.max(0, Math.min(finalSquare.x, totalWidth - finalSquare.width));
+        onSquareUpdate(finalSquare.id, extraSpaceX, totalHeight + 2, false);
+      }
+
+      setDraggedSquare(null);
+    };
+
+    const handleDocumentTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (!draggedSquare) return;
 
       const finalSquare = draggedSquare;
@@ -568,10 +615,14 @@ function QuiltCanvas({
 
     document.addEventListener('mousemove', handleDocumentMouseMove);
     document.addEventListener('mouseup', handleDocumentMouseUp);
+    document.addEventListener('touchmove', handleDocumentTouchMove, { passive: false } as AddEventListenerOptions);
+    document.addEventListener('touchend', handleDocumentTouchEnd, { passive: false } as AddEventListenerOptions);
 
     return () => {
       document.removeEventListener('mousemove', handleDocumentMouseMove);
       document.removeEventListener('mouseup', handleDocumentMouseUp);
+      document.removeEventListener('touchmove', handleDocumentTouchMove, { passive: false } as AddEventListenerOptions);
+      document.removeEventListener('touchend', handleDocumentTouchEnd, { passive: false } as AddEventListenerOptions);
     };
   }, [draggedSquare, dragOffset, tileSize, quilt.width, quilt.height, quiltSquares, onSquareUpdate]);
 
@@ -581,6 +632,19 @@ function QuiltCanvas({
     setDragOffset({
       x: e.clientX - rect.left,
       y: e.clientY - rect.top
+    });
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, square: QuiltSquare) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touch = e.touches[0];
+    if (!touch) return;
+    setDraggedSquare(square);
+    setDragOffset({
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top
     });
   }, []);
 
@@ -705,6 +769,7 @@ function QuiltCanvas({
               boxShadow: 'var(--shadow)'
             }}
             onMouseDown={(e) => handleMouseDown(e, square)}
+            onTouchStart={(e) => handleTouchStart(e, square)}
           >
             {!square.imageData && `${square.width}" × ${square.height}"`}
           </div>
@@ -784,6 +849,7 @@ function QuiltCanvas({
                   boxShadow: 'var(--shadow)'
                 }}
                 onMouseDown={(e) => handleMouseDown(e, square)}
+            onTouchStart={(e) => handleTouchStart(e, square)}
               >
                 {!square.imageData && `${square.width}" × ${square.height}"`}
                 <button
