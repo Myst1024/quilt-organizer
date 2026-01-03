@@ -859,6 +859,9 @@ function QuiltCanvas({
                     e.stopPropagation();
                     startEditingSquare(square);
                   }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                  }}
                   title="Edit dimensions"
                 >
                   {square.width} × {square.height} ✏️
