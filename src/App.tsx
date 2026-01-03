@@ -53,6 +53,14 @@ export function App() {
     setSquares(prev => prev.filter(square => square.id !== id));
   }, []);
 
+  const updateSquareDimensions = useCallback((id: string, width: number, height: number) => {
+    setSquares(prev => prev.map(square =>
+      square.id === id
+        ? { ...square, width, height }
+        : square
+    ));
+  }, []);
+
   return (
     <div className="app">
       <h1>T-Shirt Quilt Designer</h1>
@@ -101,6 +109,7 @@ export function App() {
         tileSize={TILE_SIZE}
         onSquareUpdate={updateSquarePosition}
         onSquareRemove={removeSquare}
+        onSquareDimensionUpdate={updateSquareDimensions}
         squareCreator={<SquareCreator onAddSquare={addSquare} />}
       />
     </div>
@@ -484,6 +493,7 @@ function QuiltCanvas({
   tileSize,
   onSquareUpdate,
   onSquareRemove,
+  onSquareDimensionUpdate,
   squareCreator
 }: {
   quilt: Quilt;
@@ -491,10 +501,14 @@ function QuiltCanvas({
   tileSize: number;
   onSquareUpdate: (id: string, x: number, y: number, isInQuilt: boolean) => void;
   onSquareRemove: (id: string) => void;
+  onSquareDimensionUpdate: (id: string, width: number, height: number) => void;
   squareCreator: React.ReactNode;
 }) {
   const [draggedSquare, setDraggedSquare] = useState<QuiltSquare | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [editingSquare, setEditingSquare] = useState<QuiltSquare | null>(null);
+  const [editWidth, setEditWidth] = useState(12);
+  const [editHeight, setEditHeight] = useState(12);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const quiltSquares = squares.filter(square => square.isInQuilt);
@@ -570,6 +584,23 @@ function QuiltCanvas({
   const handleMouseUp = useCallback(() => {
     // Document-level mouseup handles the drop logic
   }, []);
+
+  const startEditingSquare = useCallback((square: QuiltSquare) => {
+    setEditingSquare(square);
+    setEditWidth(square.width);
+    setEditHeight(square.height);
+  }, []);
+
+  const cancelEditingSquare = useCallback(() => {
+    setEditingSquare(null);
+  }, []);
+
+  const saveSquareDimensions = useCallback(() => {
+    if (editingSquare) {
+      onSquareDimensionUpdate(editingSquare.id, editWidth, editHeight);
+      setEditingSquare(null);
+    }
+  }, [editingSquare, editWidth, editHeight, onSquareDimensionUpdate]);
 
   return (
     <div className="quilt-canvas" ref={canvasRef}>
@@ -708,16 +739,142 @@ function QuiltCanvas({
                   justifyContent: 'center',
                   fontSize: '12px',
                   color: square.imageData ? 'transparent' : '#333',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  position: 'relative'
                 }}
                 onMouseDown={(e) => handleMouseDown(e, square)}
               >
                 {!square.imageData && `${square.width}" × ${square.height}"`}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEditingSquare(square);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    height: '20px',
+                    border: 'none',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10
+                  }}
+                  title="Edit dimensions"
+                >
+                  {square.width} × {square.height} &nbsp;&nbsp;✏️
+                </button>
               </div>
             ))}
 
 
           </div>
+
+          {/* Edit Dimensions Modal */}
+          {editingSquare && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+              }}
+              onClick={cancelEditingSquare}
+            >
+              <div
+                style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  border: '1px solid #333',
+                  minWidth: '250px'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Edit Square Dimensions</h3>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>
+                    Width (inches):
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.5"
+                      value={editWidth}
+                      onChange={(e) => setEditWidth(parseFloat(e.target.value) || 1)}
+                      style={{
+                        width: '100%',
+                        padding: '5px',
+                        marginTop: '2px',
+                        border: '1px solid #ccc',
+                        borderRadius: '3px'
+                      }}
+                    />
+                  </label>
+                </div>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>
+                    Height (inches):
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.5"
+                      value={editHeight}
+                      onChange={(e) => setEditHeight(parseFloat(e.target.value) || 1)}
+                      style={{
+                        width: '100%',
+                        padding: '5px',
+                        marginTop: '2px',
+                        border: '1px solid #ccc',
+                        borderRadius: '3px'
+                      }}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={cancelEditingSquare}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #ccc',
+                      borderRadius: '3px',
+                      backgroundColor: '#f5f5f5',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveSquareDimensions}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderRadius: '3px',
+                      backgroundColor: '#4CAF50',
+                      color: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
