@@ -17,15 +17,18 @@ interface QuiltSquare {
 interface Quilt {
   width: number; // in inches
   height: number; // in inches
+  buffer: number; // buffer area in inches around the quilt
 }
 
 export function App() {
-  const [quilt, setQuilt] = useState<Quilt>({ width: 60, height: 48 }); // Default 5x4 feet
+  const [quilt, setQuilt] = useState<Quilt>({ width: 60, height: 48, buffer: 5 }); // Default 5x4 feet with 5 inch buffer
   const [squares, setSquares] = useState<QuiltSquare[]>([]);
 
   const addSquare = useCallback((imageData: string | null, width: number, height: number) => {
     const colors: string[] = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)]!;
+
+    const totalHeight = quilt.height + 2 * quilt.buffer;
 
     const newSquare: QuiltSquare = {
       id: Date.now().toString(),
@@ -34,12 +37,12 @@ export function App() {
       height,
       color: randomColor,
       x: 0,
-      y: quilt.height + 2, // Place in extra space below quilt
+      y: totalHeight + 2, // Place in extra space below buffer area
       isInQuilt: false
     };
 
     setSquares(prev => [...prev, newSquare]);
-  }, [quilt.height]);
+  }, [quilt.height, quilt.buffer]);
 
   const updateSquarePosition = useCallback((id: string, x: number, y: number, isInQuilt: boolean) => {
     setSquares(prev => prev.map(square =>
@@ -99,6 +102,21 @@ export function App() {
                   }}
                 />
               </label>
+              <label>
+                Buffer (inches):
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={quilt.buffer}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value >= 0) {
+                      setQuilt(prev => ({ ...prev, buffer: value }));
+                    }
+                  }}
+                />
+              </label>
           </div>
         </div>
       </div>
@@ -111,6 +129,7 @@ export function App() {
         onSquareRemove={removeSquare}
         onSquareDimensionUpdate={updateSquareDimensions}
         squareCreator={<SquareCreator onAddSquare={addSquare} />}
+        buffer={quilt.buffer}
       />
     </div>
   );
@@ -494,7 +513,8 @@ function QuiltCanvas({
   onSquareUpdate,
   onSquareRemove,
   onSquareDimensionUpdate,
-  squareCreator
+  squareCreator,
+  buffer
 }: {
   quilt: Quilt;
   squares: QuiltSquare[];
@@ -503,6 +523,7 @@ function QuiltCanvas({
   onSquareRemove: (id: string) => void;
   onSquareDimensionUpdate: (id: string, width: number, height: number) => void;
   squareCreator: React.ReactNode;
+  buffer: number;
 }) {
   const [draggedSquare, setDraggedSquare] = useState<QuiltSquare | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -529,9 +550,9 @@ function QuiltCanvas({
       const snappedX = Math.round(x * 2) / 2;
       const snappedY = Math.round(y * 2) / 2;
 
-      // Only clamp X position to quilt bounds, allow Y to go below quilt for dragging to available area
-      const clampedX = Math.max(0, Math.min(snappedX, quilt.width - draggedSquare.width));
-      const clampedY = snappedY; // Don't clamp Y position - allow dragging below quilt
+      // Clamp X position to canvas bounds, but allow Y to go below canvas for returning to available area
+      const clampedX = Math.max(0, Math.min(snappedX, totalWidth - draggedSquare.width));
+      const clampedY = snappedY; // Don't clamp Y - allow dragging below canvas
 
       setDraggedSquare(prev => prev ? { ...prev, x: clampedX, y: clampedY } : null);
     };
@@ -541,18 +562,19 @@ function QuiltCanvas({
 
       const finalSquare = draggedSquare;
 
-      // Check if square is being placed in quilt area
-      const isInQuilt = finalSquare.y >= 0 && finalSquare.y < quilt.height &&
-                        finalSquare.x >= 0 && finalSquare.x < quilt.width;
+      // Check if square is within the canvas bounds (including buffer areas)
+      // Allow placement anywhere in the canvas, but allow dragging below to return to available area
+      const isWithinCanvas = finalSquare.x >= 0 && finalSquare.x <= totalWidth - finalSquare.width &&
+                             finalSquare.y >= 0 && finalSquare.y <= totalHeight - finalSquare.height;
 
-      if (isInQuilt) {
+      if (isWithinCanvas) {
         // Find nearest available position without overlapping
         const snappedPosition = findNearestAvailablePosition(finalSquare, quiltSquares, quilt);
         onSquareUpdate(finalSquare.id, snappedPosition.x, snappedPosition.y, true);
       } else {
-        // Return to extra space - maintain relative X position but place below quilt
-        const extraSpaceX = Math.max(0, Math.min(finalSquare.x, quilt.width - finalSquare.width));
-        onSquareUpdate(finalSquare.id, extraSpaceX, quilt.height + 2, false);
+        // Return to extra space - square was dragged outside the canvas bounds
+        const extraSpaceX = Math.max(0, Math.min(finalSquare.x, totalWidth - finalSquare.width));
+        onSquareUpdate(finalSquare.id, extraSpaceX, totalHeight + 2, false);
       }
 
       setDraggedSquare(null);
@@ -602,21 +624,25 @@ function QuiltCanvas({
     }
   }, [editingSquare, editWidth, editHeight, onSquareDimensionUpdate]);
 
+  // Calculate total canvas dimensions including buffer
+  const totalWidth = quilt.width + 2 * buffer;
+  const totalHeight = quilt.height + 2 * buffer;
+
   return (
     <div className="quilt-canvas" ref={canvasRef}>
       <div
         className="quilt-area"
         style={{
-          width: quilt.width * tileSize,
-          height: quilt.height * tileSize,
+          width: totalWidth * tileSize,
+          height: totalHeight * tileSize,
           border: '2px solid #333',
           position: 'relative',
           marginBottom: '40px',
           backgroundColor: '#f9f9f9'
         }}
       >
-        {/* Render grid lines */}
-        {Array.from({ length: Math.ceil(quilt.width) + 1 }, (_, i) => (
+        {/* Render grid lines for entire buffer area */}
+        {Array.from({ length: Math.ceil(totalWidth) + 1 }, (_, i) => (
           <div
             key={`v-${i}`}
             style={{
@@ -629,7 +655,7 @@ function QuiltCanvas({
             }}
           />
         ))}
-        {Array.from({ length: Math.ceil(quilt.height) + 1 }, (_, i) => (
+        {Array.from({ length: Math.ceil(totalHeight) + 1 }, (_, i) => (
           <div
             key={`h-${i}`}
             style={{
@@ -641,6 +667,28 @@ function QuiltCanvas({
               backgroundColor: '#ddd'
             }}
           />
+        ))}
+
+        {/* Render buffer background tiles */}
+        {Array.from({ length: Math.ceil(totalWidth) }, (_, x) => (
+          Array.from({ length: Math.ceil(totalHeight) }, (_, y) => {
+            const isInMainQuilt = x >= buffer && x < buffer + quilt.width && y >= buffer && y < buffer + quilt.height;
+            return (
+              <div
+                key={`buffer-${x}-${y}`}
+                style={{
+                  position: 'absolute',
+                  left: x * tileSize,
+                  top: y * tileSize,
+                  width: tileSize,
+                  height: tileSize,
+                  backgroundColor: isInMainQuilt ? 'transparent' : '#e0e0e0', // darker grey for buffer
+                  border: isInMainQuilt ? 'none' : '1px solid #ccc',
+                  zIndex: 0
+                }}
+              />
+            );
+          })
         ))}
 
         {/* Render quilt squares */}
@@ -887,12 +935,13 @@ function findNearestAvailablePosition(
   existingSquares: QuiltSquare[],
   quilt: Quilt
 ): { x: number; y: number } {
-  const { width: quiltWidth, height: quiltHeight } = quilt;
+  const totalWidth = quilt.width + 2 * quilt.buffer;
+  const totalHeight = quilt.height + 2 * quilt.buffer;
   const { width: squareWidth, height: squareHeight } = draggedSquare;
 
-  // Snap the dragged position to nearest half-tile and clamp to bounds
-  let bestX = Math.max(0, Math.min(Math.round(draggedSquare.x * 2) / 2, quiltWidth - squareWidth));
-  let bestY = Math.max(0, Math.min(Math.round(draggedSquare.y * 2) / 2, quiltHeight - squareHeight));
+  // Snap the dragged position to nearest half-tile and clamp to buffer area bounds
+  let bestX = Math.max(0, Math.min(Math.round(draggedSquare.x * 2) / 2, totalWidth - squareWidth));
+  let bestY = Math.max(0, Math.min(Math.round(draggedSquare.y * 2) / 2, totalHeight - squareHeight));
 
   // Check if current position overlaps with any existing square
   const hasOverlap = existingSquares.some(square => {
@@ -915,10 +964,10 @@ function findNearestAvailablePosition(
   let minDistance = Infinity;
   let nearestPos = { x: bestX, y: bestY };
 
-  for (let y = 0; y <= quiltHeight - squareHeight; y += step) {
+  for (let y = 0; y <= totalHeight - squareHeight; y += step) {
     // Ensure y is snapped to half-tile
     const snappedY = Math.round(y * 2) / 2;
-    for (let x = 0; x <= quiltWidth - squareWidth; x += step) {
+    for (let x = 0; x <= totalWidth - squareWidth; x += step) {
       // Ensure x is snapped to half-tile
       const snappedX = Math.round(x * 2) / 2;
       const overlaps = existingSquares.some(square => {
