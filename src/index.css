@@ -217,6 +217,24 @@ button:hover {
   margin-top: 2rem;
 }
 
+.bottom-section {
+  margin-top: 2rem;
+}
+
+.square-creator-section {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  min-width: 300px;
+}
+
+.square-creator-section h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #495057;
+}
+
 .extra-space h3 {
   color: #495057;
   margin-bottom: 1rem;
@@ -226,13 +244,9 @@ button:hover {
   transition: transform 0.1s ease;
 }
 
-.square:hover {
-  transform: scale(1.02);
-}
 
 .square.dragging {
   opacity: 0.5;
-  transform: rotate(2deg);
   z-index: 1000;
 }
 
@@ -244,5 +258,14 @@ button:hover {
 
   .app {
     padding: 1rem;
+  }
+
+  .bottom-section {
+    flex-direction: column;
+  }
+
+  .square-creator-section {
+    min-width: unset;
+    width: 100%;
   }
 }

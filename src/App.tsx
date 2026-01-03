@@ -93,11 +93,6 @@ export function App() {
               </label>
           </div>
         </div>
-
-        <div className="square-creator">
-          <h2>Add New Square</h2>
-          <SquareCreator onAddSquare={addSquare} />
-        </div>
       </div>
 
       <QuiltCanvas
@@ -106,6 +101,7 @@ export function App() {
         tileSize={TILE_SIZE}
         onSquareUpdate={updateSquarePosition}
         onSquareRemove={removeSquare}
+        squareCreator={<SquareCreator onAddSquare={addSquare} />}
       />
     </div>
   );
@@ -487,13 +483,15 @@ function QuiltCanvas({
   squares,
   tileSize,
   onSquareUpdate,
-  onSquareRemove
+  onSquareRemove,
+  squareCreator
 }: {
   quilt: Quilt;
   squares: QuiltSquare[];
   tileSize: number;
   onSquareUpdate: (id: string, x: number, y: number, isInQuilt: boolean) => void;
   onSquareRemove: (id: string) => void;
+  squareCreator: React.ReactNode;
 }) {
   const [draggedSquare, setDraggedSquare] = useState<QuiltSquare | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -644,8 +642,8 @@ function QuiltCanvas({
           </div>
         ))}
 
-        {/* Render dragged square when within or above quilt area */}
-        {draggedSquare && draggedSquare.y < quilt.height && (
+        {/* Render dragged square*/}
+        {draggedSquare && (
           <div
             className="square dragging"
             style={{
@@ -673,72 +671,53 @@ function QuiltCanvas({
         )}
       </div>
 
-      <div className="extra-space">
-        <h3>Available Squares (drag to quilt above)</h3>
-        <div
-          className="squares-container"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '10px',
-            minHeight: '100px',
-            padding: '10px',
-            border: '1px dashed #ccc'
-          }}
-        >
-          {extraSquares.map(square => (
-            <div
-              key={square.id}
-              className={`square ${draggedSquare?.id === square.id ? 'dragging' : ''}`}
-              style={{
-                width: square.width * tileSize,
-                height: square.height * tileSize,
-                backgroundColor: square.imageData ? 'transparent' : square.color,
-                backgroundImage: square.imageData ? `url(${square.imageData})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                border: '1px solid #333',
-                cursor: 'grab',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                color: square.imageData ? 'transparent' : '#333',
-                userSelect: 'none'
-              }}
-              onMouseDown={(e) => handleMouseDown(e, square)}
-            >
-              {!square.imageData && `${square.width}" × ${square.height}"`}
-            </div>
-          ))}
+      <div className="bottom-section" style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+        <div className="square-creator-section">
+          <h2>Add New Square</h2>
+          {squareCreator}
+        </div>
 
-          {/* Render dragged square when in available area */}
-          {draggedSquare && draggedSquare.y >= quilt.height && (
-            <div
-              className="square dragging"
-              style={{
-                position: 'absolute',
-                left: draggedSquare.x * tileSize,
-                top: (draggedSquare.y - quilt.height - 2) * tileSize, // Adjust for the 2-inch gap
-                width: draggedSquare.width * tileSize,
-                height: draggedSquare.height * tileSize,
-                backgroundColor: draggedSquare.imageData ? 'transparent' : draggedSquare.color,
-                backgroundImage: draggedSquare.imageData ? `url(${draggedSquare.imageData})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                border: '2px dashed #333',
-                opacity: 0.7,
-                pointerEvents: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                color: draggedSquare.imageData ? 'transparent' : '#333'
-              }}
-            >
-              {!draggedSquare.imageData && `${draggedSquare.width}" × ${draggedSquare.height}"`}
-            </div>
-          )}
+        <div className="extra-space">
+          <h3>Available Squares (drag to quilt above)</h3>
+          <div
+            className="squares-container"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '10px',
+              minHeight: '100px',
+              padding: '10px',
+              border: '1px dashed #ccc'
+            }}
+          >
+            {extraSquares.map(square => (
+              <div
+                key={square.id}
+                className={`square ${draggedSquare?.id === square.id ? 'dragging' : ''}`}
+                style={{
+                  width: square.width * tileSize,
+                  height: square.height * tileSize,
+                  backgroundColor: square.imageData ? 'transparent' : square.color,
+                  backgroundImage: square.imageData ? `url(${square.imageData})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  border: '1px solid #333',
+                  cursor: 'grab',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  color: square.imageData ? 'transparent' : '#333',
+                  userSelect: 'none'
+                }}
+                onMouseDown={(e) => handleMouseDown(e, square)}
+              >
+                {!square.imageData && `${square.width}" × ${square.height}"`}
+              </div>
+            ))}
+
+
+          </div>
         </div>
       </div>
     </div>
