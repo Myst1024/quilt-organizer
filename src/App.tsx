@@ -621,10 +621,12 @@ function QuiltCanvas({
         style={{
           width: totalWidth * tileSize,
           height: totalHeight * tileSize,
-          border: '2px solid #333',
+          border: '2px solid var(--border-light)',
           position: 'relative',
           marginBottom: '40px',
-          backgroundColor: '#f9f9f9'
+          backgroundColor: 'var(--bg-secondary)',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-lg)'
         }}
       >
         {/* Render grid lines for entire buffer area */}
@@ -637,7 +639,7 @@ function QuiltCanvas({
               top: 0,
               width: '1px',
               height: '100%',
-              backgroundColor: '#ddd'
+              backgroundColor: 'var(--border-color)'
             }}
           />
         ))}
@@ -650,7 +652,7 @@ function QuiltCanvas({
               left: 0,
               height: '1px',
               width: '100%',
-              backgroundColor: '#ddd'
+              backgroundColor: 'var(--border-color)'
             }}
           />
         ))}
@@ -668,8 +670,8 @@ function QuiltCanvas({
                   top: y * tileSize,
                   width: tileSize,
                   height: tileSize,
-                  backgroundColor: isInMainQuilt ? 'transparent' : '#e0e0e0', // darker grey for buffer
-                  border: isInMainQuilt ? 'none' : '1px solid #ccc',
+                  backgroundColor: isInMainQuilt ? 'transparent' : 'var(--bg-accent)', // darker grey for buffer
+                  border: isInMainQuilt ? 'none' : '1px solid var(--border-color)',
                   zIndex: 0
                 }}
               />
@@ -692,14 +694,15 @@ function QuiltCanvas({
               backgroundImage: square.imageData ? `url(${square.imageData})` : 'none',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              border: '1px solid #333',
+              borderRadius: '6px',
               cursor: 'grab',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              color: square.imageData ? 'transparent' : '#333',
-              userSelect: 'none'
+              color: square.imageData ? 'transparent' : 'var(--text-primary)',
+              userSelect: 'none',
+              boxShadow: 'var(--shadow)'
             }}
             onMouseDown={(e) => handleMouseDown(e, square)}
           >
@@ -721,14 +724,15 @@ function QuiltCanvas({
               backgroundImage: draggedSquare.imageData ? `url(${draggedSquare.imageData})` : 'none',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              border: '2px dashed #333',
-              opacity: 0.7,
+              borderRadius: '6px',
+              opacity: 0.8,
               pointerEvents: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              color: draggedSquare.imageData ? 'transparent' : '#333'
+              color: draggedSquare.imageData ? 'transparent' : 'var(--text-primary)',
+              boxShadow: 'var(--shadow-lg)'
             }}
           >
             {!draggedSquare.imageData && `${draggedSquare.width}" × ${draggedSquare.height}"`}
@@ -752,7 +756,9 @@ function QuiltCanvas({
               gap: '10px',
               minHeight: '100px',
               padding: '10px',
-              border: '1px dashed #ccc'
+              border: '1px dashed var(--border-color)',
+              borderRadius: '8px',
+              background: 'var(--bg-tertiary)'
             }}
           >
             {extraSquares.map(square => (
@@ -766,44 +772,30 @@ function QuiltCanvas({
                   backgroundImage: square.imageData ? `url(${square.imageData})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
-                  border: '1px solid #333',
+                  borderRadius: '6px',
                   cursor: 'grab',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '12px',
-                  color: square.imageData ? 'transparent' : '#333',
+                  color: square.imageData ? 'transparent' : 'var(--text-primary)',
                   userSelect: 'none',
-                  position: 'relative'
+                  position: 'relative',
+                  boxShadow: 'var(--shadow)'
                 }}
                 onMouseDown={(e) => handleMouseDown(e, square)}
               >
                 {!square.imageData && `${square.width}" × ${square.height}"`}
                 <button
                   type="button"
+                  className="edit-square-button"
                   onClick={(e) => {
                     e.stopPropagation();
                     startEditingSquare(square);
                   }}
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '2px',
-                    height: '20px',
-                    border: 'none',
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10
-                  }}
                   title="Edit dimensions"
                 >
-                  {square.width} × {square.height} &nbsp;&nbsp;✏️
+                  {square.width} × {square.height} ✏️
                 </button>
               </div>
             ))}
@@ -820,7 +812,8 @@ function QuiltCanvas({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: 'blur(4px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -830,15 +823,16 @@ function QuiltCanvas({
             >
               <div
                 style={{
-                  backgroundColor: 'white',
+                  backgroundColor: 'var(--bg-secondary)',
                   padding: '20px',
-                  borderRadius: '8px',
-                  border: '1px solid #333',
-                  minWidth: '250px'
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  minWidth: '250px',
+                  boxShadow: 'var(--shadow-lg)'
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Edit Square Dimensions</h3>
+                <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text-primary)', fontWeight: '600' }}>Edit Square Dimensions</h3>
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '5px' }}>
                     Width (inches):
@@ -850,10 +844,12 @@ function QuiltCanvas({
                       onChange={(e) => setEditWidth(parseFloat(e.target.value) || 1)}
                       style={{
                         width: '100%',
-                        padding: '5px',
+                        padding: '8px',
                         marginTop: '2px',
-                        border: '1px solid #ccc',
-                        borderRadius: '3px'
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-accent)',
+                        color: 'var(--text-primary)'
                       }}
                     />
                   </label>
@@ -869,10 +865,12 @@ function QuiltCanvas({
                       onChange={(e) => setEditHeight(parseFloat(e.target.value) || 1)}
                       style={{
                         width: '100%',
-                        padding: '5px',
+                        padding: '8px',
                         marginTop: '2px',
-                        border: '1px solid #ccc',
-                        borderRadius: '3px'
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-accent)',
+                        color: 'var(--text-primary)'
                       }}
                     />
                   </label>
@@ -883,10 +881,12 @@ function QuiltCanvas({
                     onClick={cancelEditingSquare}
                     style={{
                       padding: '8px 16px',
-                      border: '1px solid #ccc',
-                      borderRadius: '3px',
-                      backgroundColor: '#f5f5f5',
-                      cursor: 'pointer'
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      backgroundColor: 'var(--bg-accent)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     Cancel
@@ -897,10 +897,11 @@ function QuiltCanvas({
                     style={{
                       padding: '8px 16px',
                       border: 'none',
-                      borderRadius: '3px',
-                      backgroundColor: '#4CAF50',
+                      borderRadius: '6px',
+                      backgroundColor: 'var(--accent-green)',
                       color: 'white',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     Save
